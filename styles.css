@@ -28,11 +28,13 @@ h1 {
     display: flex;
     align-items: baseline;
     position: relative;
+    transform: scale(1);
+    transition: transform 0.3s ease; 
 }
-.input-wrapper .clear {
+.clear {
     position: absolute;
     bottom: 3px;
-    right: 6px;
+    right: 3px;
     padding: 6px;
     color: #333;
     cursor: pointer;
@@ -68,8 +70,11 @@ h1 {
     color: #f5f5f5;
     margin-bottom: 6px;
     padding: 6px;
+}
+.li-flex {
     display: flex;
     justify-content: space-between;
+    cursor: pointer;
 }
 .hl {
     background-color: #56a0d3;
@@ -90,7 +95,54 @@ h1 {
     padding: 0;
 }
 .match-stats li {
-    margin: 1em 0;
+    margin: 1em 0 0.5em 0;
     padding: 3px;
     list-style-type: none;
+}
+.more-info {
+    position: relative;
+    display: none;
+    transform: scale(0);
+    text-align: left;
+    padding: 1em;
+    margin: 1em auto;
+    width: 95%;
+    background-color: #e65f00;
+    border-radius: 5px;
+    transition: transform 0.3s ease-in;
+}
+.more-info--show {
+    display: block;
+}
+.scale-up {
+    transform: scale(1);
+}
+.close {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    padding: 6px;
+    color: #333;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+.close:hover {
+    color: #111;
+    transform: scale(1.75);
+}
+.sticky {
+    z-index: 99;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 45%;
+    min-width: 200px;
+    margin: auto;
+    padding: 6px;
+    transform: scale(1.25);
+    background-color: rgba(255,255,255,0.8);
+}
+.sticky input {
+    background-color: rgba
 }

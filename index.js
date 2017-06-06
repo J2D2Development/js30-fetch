@@ -1,16 +1,20 @@
 'use strict';
+
 /*
-TODO
-    1) fix capitalization issue on search results
-    5) animate in each individually?
+WIKIPEDIA INTEGRATION
+4) 'close' button
+    -if possible: close open div when another headline clicked (accordion style)
+5) big cities: don't include the state (ex: seattle) in the search url- how to determine?
 */
 
 function init() {
     const endpoint = 'https://gist.githubusercontent.com/bradymwilliams/1c9c88421279868860a853e7e2b02d24/raw/07d04f9f215d5c42842d619f7289ffc808d1ce69/cities.json';
     const inputDiv = document.querySelector('#city-name');
+    const inputWrapper = document.querySelector('#input-wrapper');
     const resultsDiv = document.querySelector('#results');
     const inputClearElement = document.getElementById('clear');
     const matchStatsElement = document.querySelector('#match-stats');
+    let wikipediaApiBase = 'https://en.wikipedia.org/w/api.php?format=json&action=opensearch&origin=*&search=';
     let fetchedData;
 
     const data = fetch(endpoint);
@@ -25,6 +29,18 @@ function init() {
     }).catch(error => {
         console.log(error);
     });
+
+    const watchScroll = debounce(function() {
+        const inputTop = inputWrapper.getBoundingClientRect().top;
+        const windowTop = window.pageYOffset || document.documentElement.scrollTop;
+        if(inputTop < 0) {
+            inputWrapper.classList.add('sticky');
+        }
+
+        if(windowTop === 0 && inputWrapper.classList.contains('sticky')) {
+            inputWrapper.classList.remove('sticky');
+        }
+    }, 200);
 
     const handleInput = debounce(function() {
         const regex = new RegExp(this.value, 'gi');
@@ -58,10 +74,38 @@ function init() {
                 }
                 const cityName = highlight(result.city, this.value);
                 const stateName = highlight(result.state, this.value);
+
+
+                let cityForId = result.city;
+                let cityForLink = result.city;
+                let stateForId = result.state.replace(/\'|\./gi, '');
+                let stateForLink = result.state.replace(/\'|\./gi, '');
+                const cityArray = result.city.split(' ');
+                const stateArray = result.state.split(' ');
+
+                if(cityArray.length > 1) {
+                    cityForId = cityArray.join('-').replace('.', '');
+                    cityForLink = cityArray.join('_')
+                }
+                if(stateArray.length > 1) {
+                    stateForId = stateArray.join('-').replace(/\'|\./gi, '');
+                    stateForLink = stateArray.join('_').replace(/\'|\./gi, '');
+                }
+
+                const myId = `${cityForId}-${stateForId}`;
+                const linkHref = `${wikipediaApiBase}${cityForLink},${stateForLink}`;
                 return `
                     <li>
-                        <span>${cityName}, ${stateName}</span>
-                        <span>${result.population}</span>
+                        <div class="li-flex" onclick="getWikiInfo('${linkHref}', '${myId}')">
+                            <span>${cityName}, ${stateName}</span>
+                            <span>${result.population}</span>
+                        </div>
+                        <div id="${myId}-wrapper" class="more-info">
+                            <div id="${myId}">
+                                <div style="text-align:center;">LOADING...</div>
+                            </div>
+                            <div id="${myId}-close" data-parent="${myId}" class="close">X</div>
+                        </div>
                     </li>
                 `;
             }).join('');
@@ -87,9 +131,25 @@ function init() {
             return Number(str.replace(/\,/gi, ''));
         }
 
+        function numWithCommas(num) {
+            let strArray = String(num).split('');
+            let withCommas = [];
+
+            var count = 0;
+            for(let i = strArray.length - 1; i >= 0; i -= 1) {
+                if(count === 3) {
+                    withCommas.unshift(',');
+                    count = 0;
+                }
+                withCommas.unshift(strArray[i]);
+                count += 1;
+            }
+            return withCommas.join('');
+        }
+
         matchStatsElement.innerHTML = `
             <li>Total Cities Found: ${data.length}</li>
-            <li>Total Population: ${totalPop}</li>
+            <li>Total Population: ${numWithCommas(totalPop)}</li>
         `;
     }
 
@@ -121,8 +181,61 @@ function init() {
         inputDiv.focus();
         resultsDiv.innerHTML = '';
         setMatchStats([]);
+        if(inputWrapper.classList.contains('sticky')) {
+            inputWrapper.classList.remove('sticky');
+        }
         notifyr({text: 'Results Cleared'});
     }, false);
+
+    window.addEventListener('scroll', watchScroll);
+}
+
+function getWikiInfo(url, id) {
+    const moreInfoWrapper = document.querySelector(`#${id}-wrapper`);
+    const moreInfoClose = document.querySelector(`#${id}-close`);
+    const moreInfo = document.querySelector(`#${id}`);
+
+    moreInfoWrapper.classList.add('more-info--show');
+    setTimeout(function() {
+        moreInfoWrapper.classList.add('scale-up');
+    }, 100); 
+
+    fetch(url)
+        .then(response => {
+            if(response.ok) {
+                return response.json();
+            }
+            throw new Error('Error contacting Wikipedia');
+        })
+        .then(jsonData => {
+            const basicDescription = jsonData[2][0];
+            const mainLink = jsonData[3][0];
+
+            moreInfo.innerHTML = `
+                <div>${basicDescription}</div>
+                <div>
+                    <a href="${mainLink}" target="_blank">More from Wikipedia</a>
+                </div>
+            `;
+            moreInfoClose.addEventListener('click', closeDetails, false);
+        })
+        .catch(err => {
+            notifyr({text: `${err}`});
+        });
+}
+
+function closeDetails() {
+    if(!this.dataset.parent) {
+        notifyr({text: 'Error finding parent'});
+        return;
+    }
+
+    const myParent = document.querySelector(`#${this.dataset.parent}-wrapper`);
+    myParent.classList.remove('scale-up');
+    setTimeout(function() {
+        myParent.classList.remove('more-info--show');
+    }, 400);
+    this.removeEventListener('click', closeDetails);
 }
 
 function notifyr(options) {
@@ -131,7 +244,7 @@ function notifyr(options) {
 
     const notifyrElement = document.createElement('div');
     notifyrElement.innerText = text;
-    notifyrElement.style.cssText = 'position:fixed;bottom:6px;right:6px;padding:6px;background-color:#333;color:#f5f5f5;transform:translateX(110%);transition:transform 0.3s ease';
+    notifyrElement.style.cssText = 'font-size:1.25em;position:fixed;bottom:6px;right:6px;padding:1em;background-color:#333;color:#f5f5f5;transform:translateX(110%);transition:transform 0.3s ease';
 
     document.body.appendChild(notifyrElement);
 
